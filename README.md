@@ -2,4 +2,4 @@
 
 A shell-based tool that analyzes RISC-V simulation logs.
 
-Status: work in progress
+Status: Makefile implemented
