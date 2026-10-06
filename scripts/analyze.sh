@@ -136,3 +136,82 @@ check_summary() {
     log_verbose "log says: ${line#*SUMMARY: }"
     log_verbose "we counted: $TOTAL tests, $PASSED passed, $FAILED failed, $SKIPPED skipped"
 }
+# ---------- reports ----------
+
+report_text() {
+    local min_t min_n max_t max_n avg_t name i=1
+    read -r min_t min_n max_t max_n avg_t <<< "$(timing_stats)"
+
+    echo "=== RISC-V Simulation Log Analysis ==="
+    echo "Log file: $LOG_FILE"
+    echo "Analysis date: $(date '+%Y-%m-%d %H:%M:%S')"
+    echo
+    echo "--- Results Summary ---"
+    printf 'Total tests: %d\n' "$TOTAL"
+    printf 'Passed:  %5d (%5s%%)\n' "$PASSED"  "$(pct "$PASSED"  "$TOTAL")"
+    printf 'Failed:  %5d (%5s%%)\n' "$FAILED"  "$(pct "$FAILED"  "$TOTAL")"
+    printf 'Skipped: %5d (%5s%%)\n' "$SKIPPED" "$(pct "$SKIPPED" "$TOTAL")"
+    echo
+    echo "--- Failed Tests ---"
+    if [ "$FAILED" -eq 0 ]; then
+        echo "  (none)"
+    else
+        while IFS= read -r name; do
+            printf '  %d. %s\n' "$i" "$name"
+            i=$((i + 1))
+        done < <(failed_names)
+    fi
+    echo
+    echo "--- Timing Statistics ---"
+    if [ "$min_t" = "NA" ]; then
+        echo "No timing data available"
+    else
+        printf 'Min time:  %ss (%s)\n' "$min_t" "$min_n"
+        printf 'Max time:  %ss (%s)\n' "$max_t" "$max_n"
+        printf 'Avg time:  %ss\n' "$avg_t"
+    fi
+    echo
+    echo "--- Verdict: $VERDICT ---"
+    if [ "$VERDICT" = "PASS" ]; then echo "Exit code: 0"; else echo "Exit code: 1"; fi
+}
+
+report_csv() {
+    local min_t min_n max_t max_n avg_t
+    read -r min_t min_n max_t max_n avg_t <<< "$(timing_stats)"
+    echo "log_file,total,passed,failed,skipped,pass_rate,min_time,max_time,avg_time,verdict"
+    echo "$LOG_FILE,$TOTAL,$PASSED,$FAILED,$SKIPPED,$(pct "$PASSED" "$TOTAL"),$min_t,$max_t,$avg_t,$VERDICT"
+}
+
+build_report() {
+    case "$FORMAT" in
+        text) report_text ;;
+        csv)  report_csv ;;
+    esac
+}
+
+# ---------- main ----------
+
+RESULTS="$(parse_results)"
+PASSED=$(count_status PASS)
+FAILED=$(count_status FAIL)
+SKIPPED=$(count_status SKIP)
+TOTAL=$((PASSED + FAILED + SKIPPED))
+
+# Guard against empty or malformed logs (also avoids division by zero)
+[ "$TOTAL" -gt 0 ] || die "no test results found in $LOG_FILE"
+
+if [ "$FAILED" -gt 0 ]; then VERDICT="FAIL"; else VERDICT="PASS"; fi
+
+check_summary
+
+if [ -n "$OUTPUT" ]; then
+    mkdir -p "$(dirname "$OUTPUT")"
+    build_report > "$OUTPUT"
+    log_verbose "report written to $OUTPUT"
+else
+    build_report
+fi
+
+# Exit 0 only when every executed test passed
+if [ "$FAILED" -gt 0 ]; then exit 1; fi
+exit 0
