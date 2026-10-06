@@ -1,0 +1,15 @@
+# Generated reports (keep the folder itself via .gitkeep)
+output/*
+!output/.gitkeep
+
+# Build leftovers
+*.o
+*.tmp
+
+# Editor and OS files
+.vscode/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
