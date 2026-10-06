@@ -3,6 +3,7 @@
 A shell-based tool that analyzes RISC-V simulation logs and reports pass/fail
 counts, failing test names, and timing statistics. Built for MEDS Module 1.
 
+<<<<<<< HEAD
 ## Installation
 
 ```bash
@@ -49,3 +50,10 @@ See [docs/USAGE.md](docs/USAGE.md) for the full reference.
 `output/` (generated, gitignored), `docs/` (usage guide).
 
 Status: analyzer script and Makefile implemented
+=======
+<<<<<<< HEAD
+Status: Makefile implemented
+=======
+Status: Makefile implemented
+>>>>>>> feature/makefile
+>>>>>>> docs/readme-and-usage
