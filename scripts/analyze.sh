@@ -77,3 +77,62 @@ case "$FORMAT" in
     *) die "invalid format '$FORMAT' (use text or csv)" ;;
 esac
 
+# ---------- parsing helpers ----------
+
+# One line per finished test: <name> <STATUS> <seconds or ->
+# Fields of "[date time] TEST PASS: name (0.82s)" are: $4=PASS: $5=name $6=(0.82s)
+parse_results() {
+    awk '
+        /\] TEST (PASS|FAIL|SKIP):/ {
+            status = $4
+            sub(/:$/, "", status)        # strip the trailing colon
+            t = $6
+            gsub(/[()]/, "", t)          # (0.82s) becomes 0.82s
+            if (t ~ /^[0-9.]+s$/) { sub(/s$/, "", t) } else { t = "-" }
+            print $5, status, t
+        }
+    ' "$LOG_FILE"
+}
+
+# Count results with a given status. Uses awk, not grep -c, because grep exits 1
+# on zero matches and that would kill the script under set -e.
+count_status() {
+    printf '%s\n' "$RESULTS" | awk -v s="$1" '$2 == s { n++ } END { print n + 0 }'
+}
+
+failed_names() {
+    printf '%s\n' "$RESULTS" | awk '$2 == "FAIL" { print $1 }'
+}
+
+# Prints: min min_name max max_name avg  (or five NA when no timing exists)
+timing_stats() {
+    printf '%s\n' "$RESULTS" | awk '
+        NF == 3 && $3 != "-" {
+            t = $3 + 0
+            if (n == 0 || t < min) { min = t; minname = $1 }
+            if (n == 0 || t > max) { max = t; maxname = $1 }
+            sum += t
+            n++
+        }
+        END {
+            if (n == 0) { print "NA NA NA NA NA"; exit }
+            printf "%.2f %s %.2f %s %.2f\n", min, minname, max, maxname, sum / n
+        }'
+}
+
+# pct <part> <whole> -> percentage with one decimal, safe when whole is 0
+pct() {
+    awk -v a="$1" -v b="$2" 'BEGIN { if (b == 0) printf "0.0"; else printf "%.1f", a * 100 / b }'
+}
+
+# Compare our counts with the SUMMARY line the log itself reports (verbose only)
+check_summary() {
+    local line
+    line=$(grep 'SUMMARY:' "$LOG_FILE" | tail -n 1 || true)
+    if [ -z "$line" ]; then
+        log_verbose "no SUMMARY line found in log"
+        return 0
+    fi
+    log_verbose "log says: ${line#*SUMMARY: }"
+    log_verbose "we counted: $TOTAL tests, $PASSED passed, $FAILED failed, $SKIPPED skipped"
+}
